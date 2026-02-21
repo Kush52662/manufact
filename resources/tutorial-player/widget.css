@@ -1,0 +1,128 @@
+.peazy-shell {
+  width: min(1120px, 96vw);
+  margin: 8px auto;
+  border: 1px solid rgba(92, 119, 160, 0.35);
+  border-radius: 16px;
+  padding: 10px;
+  background: linear-gradient(120deg, #111a2b, #061327);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.peazy-video-wrap {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+}
+
+.peazy-player {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 12px;
+}
+
+.peazy-gear {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 30;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(11, 18, 32, 0.82);
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.peazy-gear:hover {
+  background: rgba(21, 34, 57, 0.92);
+}
+
+.peazy-menu {
+  position: absolute;
+  top: 56px;
+  right: 10px;
+  z-index: 31;
+  width: min(420px, calc(100% - 20px));
+  border: 1px solid rgba(75, 115, 173, 0.8);
+  border-radius: 12px;
+  background: rgba(7, 17, 34, 0.98);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.peazy-menu-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(70, 101, 145, 0.6);
+  color: #c9d8f0;
+  font-size: 12px;
+}
+
+.peazy-menu-list {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.peazy-chapter {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #e7edf8;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.peazy-chapter:hover {
+  background: rgba(66, 138, 255, 0.14);
+}
+
+.peazy-chapter.active {
+  background: rgba(59, 130, 246, 0.22);
+}
+
+.peazy-radio {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid #6f84a7;
+  position: relative;
+}
+
+.peazy-chapter.active .peazy-radio {
+  border-color: #53a2ff;
+}
+
+.peazy-chapter.active .peazy-radio::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 999px;
+  background: #53a2ff;
+}
+
+.peazy-name {
+  text-align: left;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.peazy-time {
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.peazy-loading {
+  color: #c5d3ea;
+  padding: 20px;
+}
