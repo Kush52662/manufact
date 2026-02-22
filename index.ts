@@ -281,7 +281,7 @@ server.tool(
       run_id: z.string().optional().describe("Optional run identifier; defaults to ADK_DEFAULT_RUN_ID or latest run."),
     }),
     widget: {
-      name: "tutorial-player",
+      name: "tutorial-player-v2",
       invoking: "Loading tutorial player",
       invoked: "Tutorial player ready",
     },
