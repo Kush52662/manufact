@@ -370,7 +370,11 @@ server.tool(
     name: "list_pooms",
     description: "List available POOM walkthroughs and active creation jobs.",
     schema: z.object({}),
-    outputSchema: PoomDashboardSchema,
+    widget: {
+      name: "tutorial-player-v2",
+      invoking: "Loading POOM hub",
+      invoked: "POOM hub ready",
+    },
   },
   async () => {
     try {
@@ -380,9 +384,17 @@ server.tool(
         poom_url: toPoomUrl(run.run_id),
       }));
       const activeJobs = jobs.jobs.filter((job) => job.status === "queued" || job.status === "running");
-      return object({
-        active_jobs: activeJobs,
-        runs: runCards,
+      return widget({
+        props: {
+          mode: "hub",
+          runs: runCards,
+          active_jobs: activeJobs,
+          hub_message: `Loaded ${runCards.length} POOM run(s).`,
+        },
+        output: object({
+          active_jobs: activeJobs,
+          runs: runCards,
+        }),
       });
     } catch (err) {
       return toolError(err);
