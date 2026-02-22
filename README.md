@@ -35,6 +35,32 @@ POOM answers with personalized product proof, not generic marketing pages or lon
 3. Streams chaptered playback and contextual quiz interactions.
 4. Supports structured interaction patterns that can feed lead qualification workflows.
 
+## How the ADK pipeline runs
+
+```mermaid
+flowchart TD
+  A["Buyer asks a workflow question in ChatGPT/Claude"] --> B["MCP tool call: open_run_player (or pipeline execute)"]
+  B --> C["POOM MCP app (this repo)"]
+  C --> D["ADK Runtime API"]
+
+  D --> E["Ingest source video: Loom/Zoom/public URL"]
+  E --> F["yt-dlp download (URL mode) or direct file input"]
+  F --> G["FFmpeg audio extraction (16k mono WAV)"]
+  G --> H["Upload audio to GCS staging"]
+  H --> I["Cloud STT v2 (Chirp 3): word-level EDL"]
+
+  I --> J["Narrative Architect Agent (Gemini): chapter plan + rewrite"]
+  J --> K["Production Hub: deterministic segment cutting"]
+  K --> L["TTS dubbing + A/V sync per segment"]
+  L --> M["Master build: chaptered video + chapters.vtt + manifest"]
+
+  M --> N["Runtime exposes /runs, /manifest, /media, /quiz endpoints"]
+  N --> O["MCP app fetches run manifest + media URLs"]
+  O --> P["Widget renders interactive chaptered walkthrough in chat"]
+  P --> Q["Buyer interactions: chapter jumps + quiz + qualification signals"]
+  Q --> R["Qualified, enriched vendor lead context"]
+```
+
 ## What is in this repo
 
 - `index.ts`: MCP server/tool definitions and backend API bridge.
