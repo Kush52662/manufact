@@ -1,4 +1,4 @@
-import { MCPServer, error, object, widget } from "mcp-use/server";
+import { MCPServer, error, object, text, widget } from "mcp-use/server";
 import { z } from "zod";
 
 type ToolError = {
@@ -348,17 +348,38 @@ async function resolveRunId(inputRunId?: string): Promise<string> {
   return runs.runs[0].run_id;
 }
 
+function hubWidgetResponse(runs: z.infer<typeof RunInfoSchema>[], activeJobs: z.infer<typeof PipelineJobSchema>[]) {
+  const runCards = runs.map((run) => ({
+    ...run,
+    poom_url: toPoomUrl(run.run_id),
+  }));
+
+  return widget({
+    props: {
+      mode: "hub",
+      runs: runCards,
+      active_jobs: activeJobs,
+      hub_message: `Loaded ${runCards.length} POOM run(s).`,
+    },
+    output: text(`POOM hub ready with ${runCards.length} run(s) and ${activeJobs.length} active job(s).`),
+  });
+}
+
 server.tool(
   {
     name: "list_runs",
     description: "List available ADK tutorial runs.",
     schema: z.object({}),
-    outputSchema: RunsResponseSchema,
+    widget: {
+      name: "tutorial-player-v2",
+      invoking: "Loading POOM hub",
+      invoked: "POOM hub ready",
+    },
   },
   async () => {
     try {
       const runs = await fetchRuns();
-      return object(runs);
+      return hubWidgetResponse(runs.runs, []);
     } catch (err) {
       return toolError(err);
     }
@@ -379,23 +400,8 @@ server.tool(
   async () => {
     try {
       const [runs, jobs] = await Promise.all([fetchRuns(), fetchPipelineJobs()]);
-      const runCards = runs.runs.map((run) => ({
-        ...run,
-        poom_url: toPoomUrl(run.run_id),
-      }));
       const activeJobs = jobs.jobs.filter((job) => job.status === "queued" || job.status === "running");
-      return widget({
-        props: {
-          mode: "hub",
-          runs: runCards,
-          active_jobs: activeJobs,
-          hub_message: `Loaded ${runCards.length} POOM run(s).`,
-        },
-        output: object({
-          active_jobs: activeJobs,
-          runs: runCards,
-        }),
-      });
+      return hubWidgetResponse(runs.runs, activeJobs);
     } catch (err) {
       return toolError(err);
     }
