@@ -41,6 +41,45 @@ const RunsResponseSchema = z.object({
   runs: z.array(RunInfoSchema),
 });
 
+const PipelineJobSchema = z.object({
+  job_id: z.string(),
+  status: z.enum(["queued", "running", "completed", "failed"]),
+  stage: z.string().optional().default("queued"),
+  progress_pct: z.number().optional().default(0),
+  message: z.string().optional().default(""),
+  youtube_url: z.string().optional().default(""),
+  run_name: z.string().optional().default(""),
+  run_id: z.string().nullable().optional(),
+  started_at: z.string().optional().default(""),
+  updated_at: z.string().optional().default(""),
+  completed_at: z.string().optional(),
+  failed_at: z.string().optional(),
+  error: z
+    .object({
+      code: z.string(),
+      message: z.string(),
+      retryable: z.boolean().optional().default(false),
+    })
+    .optional(),
+});
+
+const PipelineJobCreateSchema = z.object({
+  job: PipelineJobSchema,
+});
+
+const PipelineJobsSchema = z.object({
+  jobs: z.array(PipelineJobSchema),
+});
+
+const RunCardSchema = RunInfoSchema.extend({
+  poom_url: z.string(),
+});
+
+const PoomDashboardSchema = z.object({
+  active_jobs: z.array(PipelineJobSchema),
+  runs: z.array(RunCardSchema),
+});
+
 const ChapterSchema = z.object({
   segment_id: z.string(),
   name: z.string(),
@@ -121,6 +160,29 @@ const QuizScoreSchema = z.object({
 
 const manifestCache = new Map<string, { expiresAt: number; payload: z.infer<typeof ManifestSchema> }>();
 const inflightManifest = new Map<string, Promise<z.infer<typeof ManifestSchema>>>();
+
+function toPoomUrl(runId: string): string {
+  return `poom://run/${encodeURIComponent(runId)}`;
+}
+
+function parsePoomRef(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const poomMatch = trimmed.match(/^poom:\/\/run\/(.+)$/i);
+  if (poomMatch && poomMatch[1]) {
+    return decodeURIComponent(poomMatch[1]);
+  }
+  const queryMatch = trimmed.match(/[?&]run_id=([^&#]+)/i);
+  if (queryMatch && queryMatch[1]) {
+    return decodeURIComponent(queryMatch[1]);
+  }
+  return trimmed;
+}
 
 function normalizeError(err: unknown): ToolError {
   if (typeof err === "object" && err !== null) {
@@ -208,6 +270,17 @@ async function fetchRuns(): Promise<z.infer<typeof RunsResponseSchema>> {
   return RunsResponseSchema.parse(raw);
 }
 
+async function fetchPipelineJobs(): Promise<z.infer<typeof PipelineJobsSchema>> {
+  const raw = await fetchJson("/pipeline/jobs");
+  return PipelineJobsSchema.parse(raw);
+}
+
+async function fetchPipelineJob(jobId: string): Promise<z.infer<typeof PipelineJobSchema>> {
+  const raw = await fetchJson(`/pipeline/jobs/${encodeURIComponent(jobId)}`);
+  const parsed = z.object({ job: PipelineJobSchema }).parse(raw);
+  return parsed.job;
+}
+
 async function fetchManifest(runId: string): Promise<z.infer<typeof ManifestSchema>> {
   const cached = manifestCache.get(runId);
   const now = Date.now();
@@ -275,10 +348,94 @@ server.tool(
 
 server.tool(
   {
+    name: "list_pooms",
+    description: "List available POOM walkthroughs and active creation jobs.",
+    schema: z.object({}),
+    outputSchema: PoomDashboardSchema,
+  },
+  async () => {
+    try {
+      const [runs, jobs] = await Promise.all([fetchRuns(), fetchPipelineJobs()]);
+      const runCards = runs.runs.map((run) => ({
+        ...run,
+        poom_url: toPoomUrl(run.run_id),
+      }));
+      const activeJobs = jobs.jobs.filter((job) => job.status === "queued" || job.status === "running");
+      return object({
+        active_jobs: activeJobs,
+        runs: runCards,
+      });
+    } catch (err) {
+      return toolError(err);
+    }
+  }
+);
+
+server.tool(
+  {
+    name: "create_poom",
+    description: "Create a new POOM from a public video URL and return a job id for progress polling.",
+    schema: z.object({
+      youtube_url: z.string().url().describe("Public video URL (YouTube/Loom/Zoom) to generate a POOM from."),
+      run_id: z.string().optional().describe("Optional custom run id slug."),
+    }),
+    outputSchema: PipelineJobCreateSchema,
+  },
+  async ({ youtube_url, run_id }) => {
+    try {
+      const raw = await fetchJson("/pipeline/jobs", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ youtube_url, run_id }),
+      });
+      const created = PipelineJobCreateSchema.parse(raw);
+      return object(created);
+    } catch (err) {
+      return toolError(err);
+    }
+  }
+);
+
+server.tool(
+  {
+    name: "get_poom_status",
+    description: "Get POOM creation progress and current POOM library snapshot.",
+    schema: z.object({
+      job_id: z.string(),
+    }),
+    outputSchema: z.object({
+      job: PipelineJobSchema,
+      runs: z.array(RunCardSchema),
+    }),
+  },
+  async ({ job_id }) => {
+    try {
+      const [job, runs] = await Promise.all([fetchPipelineJob(job_id), fetchRuns()]);
+      return object({
+        job,
+        runs: runs.runs.map((run) => ({
+          ...run,
+          poom_url: toPoomUrl(run.run_id),
+        })),
+      });
+    } catch (err) {
+      return toolError(err);
+    }
+  }
+);
+
+server.tool(
+  {
     name: "open_run_player",
     description: "Open the Vidstack tutorial player for a run using master video chapters.",
     schema: z.object({
       run_id: z.string().optional().describe("Optional run identifier; defaults to ADK_DEFAULT_RUN_ID or latest run."),
+      poom_ref: z
+        .string()
+        .optional()
+        .describe("Optional POOM reference (e.g. poom://run/<run_id> or URL containing run_id)."),
     }),
     widget: {
       name: "tutorial-player-v2",
@@ -286,9 +443,9 @@ server.tool(
       invoked: "Tutorial player ready",
     },
   },
-  async ({ run_id }) => {
+  async ({ run_id, poom_ref }) => {
     try {
-      const resolvedRunId = await resolveRunId(run_id);
+      const resolvedRunId = await resolveRunId(run_id || parsePoomRef(poom_ref));
       const manifest = await fetchManifest(resolvedRunId);
 
       if (!manifest.master.available || !manifest.master.video_stream_url) {
@@ -299,6 +456,25 @@ server.tool(
         } satisfies ToolError;
       }
 
+      const chaptersWithMeta = manifest.master.chapters.map((chapter, index) => {
+        const seg = manifest.segments.find((row) => row.segment_id === chapter.segment_id);
+        return {
+          index: index + 1,
+          segment_id: chapter.segment_id,
+          name: chapter.name,
+          start_s: chapter.start_s,
+          end_s: chapter.end_s,
+          dub_script: seg?.dub_script ?? "",
+          original_transcript_summary: seg?.original_transcript_summary ?? "",
+          visual_description: seg?.visual_description ?? "",
+        };
+      });
+
+      const metadataLines = chaptersWithMeta.map((chapter) => {
+        const summary = chapter.original_transcript_summary || "No summary";
+        return `- ${chapter.index}. ${chapter.name} (${chapter.start_s.toFixed(1)}s-${chapter.end_s.toFixed(1)}s): ${summary}`;
+      });
+
       return widget({
         props: {
           run_id: resolvedRunId,
@@ -308,15 +484,16 @@ server.tool(
           default_chapter: 0,
           quiz_mode: "lite",
         },
-        message: JSON.stringify(
-          {
-            run_id: resolvedRunId,
-            chapter_count: manifest.master.chapters.length,
-            duration_s: manifest.master.duration_s,
-          },
-          null,
-          2
-        ),
+        message: [
+          `POOM ready: ${resolvedRunId}`,
+          `POOM URL: ${toPoomUrl(resolvedRunId)}`,
+          `Duration: ${manifest.master.duration_s.toFixed(2)}s`,
+          `Chapters: ${manifest.master.chapters.length}`,
+          `Manifest updated: ${new Date(manifest.updated_at * 1000).toISOString()}`,
+          "",
+          "Chapter metadata:",
+          ...metadataLines,
+        ].join("\n"),
       });
     } catch (err) {
       return toolError(err);

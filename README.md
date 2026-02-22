@@ -75,6 +75,9 @@ flowchart LR
 ## MCP tools exposed
 
 - `list_runs`
+- `list_pooms`
+- `create_poom`
+- `get_poom_status`
 - `open_run_player`
 - `get_segment_quiz`
 - `submit_segment_quiz`
@@ -85,6 +88,9 @@ This MCP app expects a runtime API that provides:
 
 - `GET /runs`
 - `GET /runs/{run_id}/manifest`
+- `GET /pipeline/jobs`
+- `POST /pipeline/jobs`
+- `GET /pipeline/jobs/{job_id}`
 - `GET /quiz/{run_id}/{segment_id}`
 - `POST /quiz/{run_id}/{segment_id}/score`
 - media/chapter endpoints returned in manifest payloads
