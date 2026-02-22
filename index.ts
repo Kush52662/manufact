@@ -19,6 +19,10 @@ const ADK_API_BASE_URL = resolveAdkBaseUrl();
 const ADK_API_TIMEOUT_MS = Number.parseInt(process.env.ADK_API_TIMEOUT_MS ?? "9000", 10);
 const ADK_DEFAULT_RUN_ID = process.env.ADK_DEFAULT_RUN_ID?.trim() || undefined;
 const MANIFEST_CACHE_TTL_MS = 30_000;
+const ADK_FALLBACK_BASE_URLS = ["https://fixed-control-van-vocabulary.trycloudflare.com"];
+const ADK_UPSTREAM_BASES = [ADK_API_BASE_URL, ...ADK_FALLBACK_BASE_URLS]
+  .map((value) => value.replace(/\/+$/, ""))
+  .filter((value, index, arr) => Boolean(value) && arr.indexOf(value) === index);
 
 const server = new MCPServer({
   name: "peazy-mcp-app",
@@ -233,20 +237,22 @@ function withCorrelationId(headers: HeadersInit | undefined) {
 async function fetchJson(
   path: string,
   init: RequestInit = {},
-  attempt = 0
+  attempt = 0,
+  upstreamIndex = 0
 ): Promise<unknown> {
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), Math.max(1000, ADK_API_TIMEOUT_MS));
+  const upstreamBase = ADK_UPSTREAM_BASES[upstreamIndex] ?? ADK_API_BASE_URL;
 
   try {
-    const response = await fetch(`${ADK_API_BASE_URL}${path}`, {
+    const response = await fetch(`${upstreamBase}${path}`, {
       ...init,
       headers: withCorrelationId(init.headers),
       signal: controller.signal,
     });
 
     if ((response.status === 502 || response.status === 503) && attempt < 1) {
-      return fetchJson(path, init, attempt + 1);
+      return fetchJson(path, init, attempt + 1, upstreamIndex);
     }
 
     const data = await response.json().catch(() => ({}));
@@ -268,6 +274,11 @@ async function fetchJson(
     }
 
     return data;
+  } catch (err) {
+    if (upstreamIndex + 1 < ADK_UPSTREAM_BASES.length) {
+      return fetchJson(path, init, attempt, upstreamIndex + 1);
+    }
+    throw err;
   } finally {
     clearTimeout(timeoutHandle);
   }
