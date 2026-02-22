@@ -2,7 +2,7 @@ import { AppsSDKUIProvider } from "@openai/apps-sdk-ui/components/AppsSDKUIProvi
 import { McpUseProvider, useWidget, type WidgetMetadata } from "mcp-use/react";
 import { MediaPlayer, MediaProvider, Track } from "@vidstack/react";
 import "@vidstack/react/player/styles/default/theme.css";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import "../styles.css";
 import "./widget.css";
@@ -21,12 +21,18 @@ export const widgetMetadata: WidgetMetadata = {
       connectDomains: [
         "https://fixed-control-van-vocabulary.trycloudflare.com",
         "https://storage.googleapis.com",
+        "https://storage.cloud.google.com",
         "https://*.googleapis.com",
+        "https://*.run.app",
+        "https://*.trycloudflare.com",
       ],
       resourceDomains: [
         "https://storage.googleapis.com",
+        "https://storage.cloud.google.com",
         "https://*.googleapis.com",
         "https://fixed-control-van-vocabulary.trycloudflare.com",
+        "https://*.run.app",
+        "https://*.trycloudflare.com",
       ],
     },
   },
@@ -40,13 +46,14 @@ function formatSeconds(value: number): string {
 }
 
 const TutorialPlayer: React.FC = () => {
-  const { props, isPending } = useWidget<TutorialPlayerProps>();
+  const { props, isPending, requestDisplayMode, displayMode, isAvailable } = useWidget<TutorialPlayerProps>();
   const chapters = props?.chapters ?? [];
   const playerRef = useRef<any>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [position, setPosition] = useState(0);
   const [lastInteraction, setLastInteraction] = useState("");
+  const [modePending, setModePending] = useState<"inline" | "fullscreen" | "pip" | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -126,6 +133,25 @@ const TutorialPlayer: React.FC = () => {
     jumpToChapter(next);
   };
 
+  const changeDisplayMode = useCallback(
+    async (mode: "inline" | "fullscreen" | "pip") => {
+      if (!isAvailable) {
+        setLastInteraction("Display mode controls unavailable in this host.");
+        return;
+      }
+      try {
+        setModePending(mode);
+        const result = await requestDisplayMode(mode);
+        setLastInteraction(`Display mode: ${result.mode}`);
+      } catch {
+        setLastInteraction(`Unable to switch to ${mode}`);
+      } finally {
+        setModePending(null);
+      }
+    },
+    [isAvailable, requestDisplayMode]
+  );
+
   if (isPending) {
     return <div className="peazy-loading">Loading tutorial player...</div>;
   }
@@ -139,6 +165,38 @@ const TutorialPlayer: React.FC = () => {
       <AppsSDKUIProvider linkComponent={Link}>
         <div className="peazy-shell">
           <div className="peazy-video-wrap">
+            <div className="peazy-overlay-actions">
+              {displayMode !== "inline" ? (
+                <button
+                  className="peazy-mode-btn"
+                  type="button"
+                  onClick={() => void changeDisplayMode("inline")}
+                  disabled={modePending !== null}
+                  aria-label="Return to inline mode"
+                >
+                  Inline
+                </button>
+              ) : null}
+              <button
+                className="peazy-mode-btn"
+                type="button"
+                onClick={() => void changeDisplayMode("fullscreen")}
+                disabled={modePending !== null}
+                aria-label="Expand to fullscreen"
+              >
+                Expand
+              </button>
+              <button
+                className="peazy-mode-btn"
+                type="button"
+                onClick={() => void changeDisplayMode("pip")}
+                disabled={modePending !== null}
+                aria-label="Open picture-in-picture"
+              >
+                PiP
+              </button>
+            </div>
+
             {chapters.length > 0 ? (
               <div className="peazy-active-pill">
                 {activeIndex >= 0 ? `Chapter ${activeIndex + 1}: ${chapters[activeIndex].name}` : "Chapter list ready"}
@@ -200,7 +258,6 @@ const TutorialPlayer: React.FC = () => {
               src={props.master_video_url}
               controls
               playsInline
-              crossOrigin=""
             >
               <MediaProvider />
               {props.chapters_track_url ? (
