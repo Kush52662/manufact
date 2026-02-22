@@ -220,10 +220,33 @@ function deriveRunTitle(run: z.infer<typeof RunInfoSchema>): string {
   return title || "POOM Walkthrough";
 }
 
-function toRunCard(run: z.infer<typeof RunInfoSchema>) {
+function titleLooksOpaque(title: string): boolean {
+  const compact = title.replace(/\s+/g, "");
+  if (!compact) return true;
+  if (/^[a-z0-9]{8,14}$/i.test(compact)) return true;
+  if (/^[a-z0-9_-]{8,14}$/i.test(compact)) return true;
+  return false;
+}
+
+async function toRunCard(run: z.infer<typeof RunInfoSchema>) {
+  const heuristicTitle = deriveRunTitle(run);
+  let runTitle = heuristicTitle;
+
+  if (titleLooksOpaque(heuristicTitle)) {
+    try {
+      const manifest = await fetchManifest(run.run_id);
+      const candidate = manifest.master.chapters[0]?.name || manifest.segments[0]?.name || "";
+      if (candidate.trim()) {
+        runTitle = candidate.trim();
+      }
+    } catch {
+      // Keep heuristic title when manifest lookup fails.
+    }
+  }
+
   return {
     ...run,
-    run_title: deriveRunTitle(run),
+    run_title: runTitle,
     poom_url: toPoomUrl(run.run_id),
   };
 }
@@ -399,8 +422,8 @@ async function resolveRunId(inputRunId?: string): Promise<string> {
   return runs.runs[0].run_id;
 }
 
-function hubWidgetResponse(runs: z.infer<typeof RunInfoSchema>[], activeJobs: z.infer<typeof PipelineJobSchema>[]) {
-  const runCards = runs.map((run) => toRunCard(run));
+async function hubWidgetResponse(runs: z.infer<typeof RunInfoSchema>[], activeJobs: z.infer<typeof PipelineJobSchema>[]) {
+  const runCards = await Promise.all(runs.map((run) => toRunCard(run)));
 
   return widget({
     props: {
@@ -427,7 +450,7 @@ server.tool(
   async () => {
     try {
       const runs = await fetchRuns();
-      return hubWidgetResponse(runs.runs, []);
+      return await hubWidgetResponse(runs.runs, []);
     } catch (err) {
       return toolError(err);
     }
@@ -449,7 +472,7 @@ server.tool(
     try {
       const [runs, jobs] = await Promise.all([fetchRuns(), fetchPipelineJobs()]);
       const activeJobs = jobs.jobs.filter((job) => job.status === "queued" || job.status === "running");
-      return hubWidgetResponse(runs.runs, activeJobs);
+      return await hubWidgetResponse(runs.runs, activeJobs);
     } catch (err) {
       return toolError(err);
     }
@@ -502,10 +525,12 @@ server.tool(
         hubMessage = `POOM queued: ${created.job.job_id}. Refreshing runs is temporarily unavailable.`;
       }
 
+      const runCards = await Promise.all(runs.map((run) => toRunCard(run)));
+
       return widget({
         props: {
           mode: "hub",
-          runs: runs.map((run) => toRunCard(run)),
+          runs: runCards,
           active_jobs: activeJobs,
           latest_job: created.job,
           hub_message: hubMessage,
@@ -537,7 +562,7 @@ server.tool(
       const [job, runs] = await Promise.all([fetchPipelineJob(job_id), fetchRuns()]);
       return object({
         job,
-        runs: runs.runs.map((run) => toRunCard(run)),
+        runs: await Promise.all(runs.runs.map((run) => toRunCard(run))),
       });
     } catch (err) {
       return toolError(err);
