@@ -46,6 +46,11 @@ Everything happens inside the ChatGPT widget:
 
 No context switching, no external dashboard required.
 
+## Demo videos
+
+- [POOM demo 1](https://youtu.be/q7a79l-Vrj8)
+- [POOM demo 2](https://youtu.be/s0HEro9KqIM)
+
 ## How the ADK pipeline runs
 
 ```mermaid
