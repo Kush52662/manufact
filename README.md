@@ -38,27 +38,30 @@ POOM answers with personalized product proof, not generic marketing pages or lon
 ## How the ADK pipeline runs
 
 ```mermaid
-flowchart TD
-  A["Buyer asks a workflow question in ChatGPT/Claude"] --> B["MCP tool call: open_run_player (or pipeline execute)"]
-  B --> C["POOM MCP app (this repo)"]
-  C --> D["ADK Runtime API"]
+flowchart LR
+  subgraph Chat["Chat Surface"]
+    Buyer["Buyer asks workflow question"]
+    MCP["POOM MCP App<br/>tools + widget"]
+    Buyer --> MCP
+  end
 
-  D --> E["Ingest source video: Loom/Zoom/public URL"]
-  E --> F["yt-dlp download (URL mode) or direct file input"]
-  F --> G["FFmpeg audio extraction (16k mono WAV)"]
-  G --> H["Upload audio to GCS staging"]
-  H --> I["Cloud STT v2 (Chirp 3): word-level EDL"]
+  subgraph Runtime["ADK Runtime Pipeline"]
+    Ingest["Video ingest<br/>Loom/Zoom/public URL"]
+    STT["Audio + STT<br/>FFmpeg + Chirp 3"]
+    Gen["Narrative + Production<br/>Gemini + deterministic cut + TTS"]
+    Pack["Master artifacts<br/>manifest + chapters + media"]
+    Ingest --> STT --> Gen --> Pack
+  end
 
-  I --> J["Narrative Architect Agent (Gemini): chapter plan + rewrite"]
-  J --> K["Production Hub: deterministic segment cutting"]
-  K --> L["TTS dubbing + A/V sync per segment"]
-  L --> M["Master build: chaptered video + chapters.vtt + manifest"]
+  subgraph Outcome["Interactive Outcome"]
+    UI["Chaptered in-chat walkthrough"]
+    Lead["Qualified + enriched lead context"]
+    UI --> Lead
+  end
 
-  M --> N["Runtime exposes /runs, /manifest, /media, /quiz endpoints"]
-  N --> O["MCP app fetches run manifest + media URLs"]
-  O --> P["Widget renders interactive chaptered walkthrough in chat"]
-  P --> Q["Buyer interactions: chapter jumps + quiz + qualification signals"]
-  Q --> R["Qualified, enriched vendor lead context"]
+  MCP --> Ingest
+  Pack --> MCP
+  MCP --> UI
 ```
 
 ## What is in this repo
