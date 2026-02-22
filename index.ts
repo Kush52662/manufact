@@ -7,7 +7,15 @@ type ToolError = {
   retryable: boolean;
 };
 
-const ADK_API_BASE_URL = (process.env.ADK_API_BASE_URL ?? "http://localhost:8000").replace(/\/+$/, "");
+function resolveAdkBaseUrl(): string {
+  const raw = (process.env.ADK_API_BASE_URL ?? "").trim();
+  const withScheme = raw
+    ? (raw.startsWith("http://") || raw.startsWith("https://") ? raw : `https://${raw}`)
+    : "https://fixed-control-van-vocabulary.trycloudflare.com";
+  return withScheme.replace(/\/+$/, "");
+}
+
+const ADK_API_BASE_URL = resolveAdkBaseUrl();
 const ADK_API_TIMEOUT_MS = Number.parseInt(process.env.ADK_API_TIMEOUT_MS ?? "9000", 10);
 const ADK_DEFAULT_RUN_ID = process.env.ADK_DEFAULT_RUN_ID?.trim() || undefined;
 const MANIFEST_CACHE_TTL_MS = 30_000;
@@ -199,14 +207,14 @@ function normalizeError(err: unknown): ToolError {
   if (err instanceof Error && err.name === "AbortError") {
     return {
       code: "UPSTREAM_TIMEOUT",
-      message: `ADK runtime timeout after ${ADK_API_TIMEOUT_MS}ms`,
+      message: `ADK runtime timeout after ${ADK_API_TIMEOUT_MS}ms (${ADK_API_BASE_URL})`,
       retryable: true,
     };
   }
 
   return {
     code: "UPSTREAM_TIMEOUT",
-    message: err instanceof Error ? err.message : "Unknown upstream failure",
+    message: `${err instanceof Error ? err.message : "Unknown upstream failure"} (${ADK_API_BASE_URL})`,
     retryable: true,
   };
 }
