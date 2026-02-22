@@ -308,11 +308,15 @@ server.tool(
           default_chapter: 0,
           quiz_mode: "lite",
         },
-        output: object({
-          run_id: resolvedRunId,
-          chapter_count: manifest.master.chapters.length,
-          duration_s: manifest.master.duration_s,
-        }),
+        message: JSON.stringify(
+          {
+            run_id: resolvedRunId,
+            chapter_count: manifest.master.chapters.length,
+            duration_s: manifest.master.duration_s,
+          },
+          null,
+          2
+        ),
       });
     } catch (err) {
       return toolError(err);
