@@ -40,6 +40,7 @@ export const widgetMetadata: WidgetMetadata = {
 
 type RunCard = {
   run_id: string;
+  run_title?: string;
   created_at?: string;
   segment_count?: number;
   duration_sec?: number;
@@ -72,6 +73,19 @@ function formatWhen(value: string | undefined): string {
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function formatRunTitle(run: RunCard): string {
+  if (run.run_title && run.run_title.trim()) {
+    return run.run_title.trim();
+  }
+  const normalized = run.run_id.replace(/^runs-yc-/i, "").replace(/-\d{8}-[a-f0-9]{8}$/i, "");
+  return normalized
+    .replace(/[-_]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(" ");
 }
 
 const TutorialPlayer: React.FC = () => {
@@ -276,14 +290,34 @@ const TutorialPlayer: React.FC = () => {
     try {
       const response = await callTool("create_poom", { youtube_url: url });
       const data = (response?.structuredContent ?? {}) as any;
-      const job = data?.job as PoomJob | undefined;
+      const jobsFromPayload = asArray<PoomJob>(data?.active_jobs);
+      const runsFromPayload = asArray<RunCard>(data?.runs);
+      const job =
+        (data?.latest_job as PoomJob | undefined) ||
+        (data?.job as PoomJob | undefined) ||
+        (jobsFromPayload.length ? jobsFromPayload[0] : undefined);
+
+      if (runsFromPayload.length) {
+        setHubRuns(runsFromPayload);
+      }
+      if (jobsFromPayload.length) {
+        setHubJobs(jobsFromPayload);
+      }
+      if (typeof data?.hub_message === "string" && data.hub_message.trim()) {
+        setHubMessage(data.hub_message);
+      }
+
       if (!job?.job_id) {
         setHubMessage("POOM creation response was missing a job id.");
         return;
       }
 
-      setHubJobs((prev) => [job, ...prev.filter((row) => row.job_id !== job.job_id)].slice(0, 8));
-      setHubMessage(`POOM queued: ${job.job_id}`);
+      if (!jobsFromPayload.length) {
+        setHubJobs((prev) => [job, ...prev.filter((row) => row.job_id !== job.job_id)].slice(0, 8));
+      }
+      if (!(typeof data?.hub_message === "string" && data.hub_message.trim())) {
+        setHubMessage(`POOM queued: ${job.job_id}`);
+      }
       stopPolling();
       pollTimerRef.current = window.setTimeout(() => {
         void pollJob(job.job_id);
@@ -390,7 +424,8 @@ const TutorialPlayer: React.FC = () => {
                   {hubRuns.map((run) => (
                     <div key={run.run_id} className="peazy-row peazy-run-row">
                       <div>
-                        <div><strong>{run.run_id}</strong></div>
+                        <div><strong>{formatRunTitle(run)}</strong></div>
+                        <div className="peazy-muted">{run.run_id}</div>
                         <div className="peazy-muted">
                           {formatWhen(run.created_at)} · {run.segment_count ?? 0} segments · {(run.duration_sec ?? 0).toFixed(1)}s
                         </div>

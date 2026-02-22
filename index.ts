@@ -84,6 +84,7 @@ const PipelineJobsSchema = z.object({
 });
 
 const RunCardSchema = RunInfoSchema.extend({
+  run_title: z.string(),
   poom_url: z.string(),
 });
 
@@ -175,6 +176,56 @@ const inflightManifest = new Map<string, Promise<z.infer<typeof ManifestSchema>>
 
 function toPoomUrl(runId: string): string {
   return `poom://run/${encodeURIComponent(runId)}`;
+}
+
+function formatTitleToken(token: string): string {
+  const normalized = token.trim().toLowerCase();
+  if (!normalized) return "";
+  const tokenMap: Record<string, string> = {
+    yc: "YC",
+    poom: "POOM",
+    e2e: "E2E",
+    api: "API",
+    ui: "UI",
+    ux: "UX",
+    npsp: "NPSP",
+    qa: "QA",
+  };
+  if (tokenMap[normalized]) {
+    return tokenMap[normalized];
+  }
+  if (/^\d+$/.test(normalized)) {
+    return normalized;
+  }
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function deriveRunTitle(run: z.infer<typeof RunInfoSchema>): string {
+  const pathMatch = run.manifest_path.match(/\/?([^/]+)\/master_manifest\.json$/i);
+  let candidate = (pathMatch?.[1] || run.run_id || "").trim();
+  candidate = candidate.replace(/^runs[-_]/i, "");
+  candidate = candidate.replace(/^yc[-_]/i, "");
+  candidate = candidate.replace(/[-_]\d{8}$/i, "");
+  candidate = candidate.replace(/[-_][a-f0-9]{8}$/i, "");
+  candidate = candidate.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!candidate) {
+    return "POOM Walkthrough";
+  }
+  const title = candidate
+    .split(" ")
+    .map((token) => formatTitleToken(token))
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return title || "POOM Walkthrough";
+}
+
+function toRunCard(run: z.infer<typeof RunInfoSchema>) {
+  return {
+    ...run,
+    run_title: deriveRunTitle(run),
+    poom_url: toPoomUrl(run.run_id),
+  };
 }
 
 function parsePoomRef(value: string | undefined): string | undefined {
@@ -349,10 +400,7 @@ async function resolveRunId(inputRunId?: string): Promise<string> {
 }
 
 function hubWidgetResponse(runs: z.infer<typeof RunInfoSchema>[], activeJobs: z.infer<typeof PipelineJobSchema>[]) {
-  const runCards = runs.map((run) => ({
-    ...run,
-    poom_url: toPoomUrl(run.run_id),
-  }));
+  const runCards = runs.map((run) => toRunCard(run));
 
   return widget({
     props: {
@@ -411,12 +459,17 @@ server.tool(
 server.tool(
   {
     name: "create_poom",
-    description: "Create a new POOM from a public video URL and return a job id for progress polling.",
+    description:
+      "Create a new POOM from a public video URL, then immediately return refreshed POOM hub data (active jobs + existing POOM runs).",
     schema: z.object({
       youtube_url: z.string().url().describe("Public video URL (YouTube/Loom/Zoom) to generate a POOM from."),
       run_id: z.string().optional().describe("Optional custom run id slug."),
     }),
-    outputSchema: PipelineJobCreateSchema,
+    widget: {
+      name: "tutorial-player-v2",
+      invoking: "Starting POOM creation",
+      invoked: "POOM creation started",
+    },
   },
   async ({ youtube_url, run_id }) => {
     try {
@@ -428,7 +481,39 @@ server.tool(
         body: JSON.stringify({ youtube_url, run_id }),
       });
       const created = PipelineJobCreateSchema.parse(raw);
-      return object(created);
+
+      let runs: z.infer<typeof RunInfoSchema>[] = [];
+      let activeJobs: z.infer<typeof PipelineJobSchema>[] = [created.job];
+      let hubMessage = `POOM queued: ${created.job.job_id}`;
+
+      try {
+        const [runsResponse, jobsResponse] = await Promise.all([fetchRuns(), fetchPipelineJobs()]);
+        runs = runsResponse.runs;
+        const deduped = new Map<string, z.infer<typeof PipelineJobSchema>>();
+        const merged = [created.job, ...jobsResponse.jobs];
+        for (const job of merged) {
+          if ((job.status === "queued" || job.status === "running") && !deduped.has(job.job_id)) {
+            deduped.set(job.job_id, job);
+          }
+        }
+        activeJobs = Array.from(deduped.values());
+        hubMessage = `POOM queued: ${created.job.job_id}. Showing ${runs.length} POOM run(s).`;
+      } catch {
+        hubMessage = `POOM queued: ${created.job.job_id}. Refreshing runs is temporarily unavailable.`;
+      }
+
+      return widget({
+        props: {
+          mode: "hub",
+          runs: runs.map((run) => toRunCard(run)),
+          active_jobs: activeJobs,
+          latest_job: created.job,
+          hub_message: hubMessage,
+        },
+        output: text(
+          `POOM creation started (${created.job.job_id}). You can track progress and browse other POOM runs in the hub.`
+        ),
+      });
     } catch (err) {
       return toolError(err);
     }
@@ -452,10 +537,7 @@ server.tool(
       const [job, runs] = await Promise.all([fetchPipelineJob(job_id), fetchRuns()]);
       return object({
         job,
-        runs: runs.runs.map((run) => ({
-          ...run,
-          poom_url: toPoomUrl(run.run_id),
-        })),
+        runs: runs.runs.map((run) => toRunCard(run)),
       });
     } catch (err) {
       return toolError(err);

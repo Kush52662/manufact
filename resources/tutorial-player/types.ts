@@ -9,6 +9,7 @@ export const chapterSchema = z.object({
 
 export const runCardSchema = z.object({
   run_id: z.string(),
+  run_title: z.string().optional().default(""),
   manifest_path: z.string().optional().default(""),
   created_at: z.string().optional().default(""),
   segment_count: z.number().optional().default(0),
@@ -46,6 +47,7 @@ export const propSchema = z.object({
   quiz_mode: z.string().optional().default("lite"),
   runs: z.array(runCardSchema).optional().default([]),
   active_jobs: z.array(jobSchema).optional().default([]),
+  latest_job: jobSchema.optional(),
   hub_message: z.string().optional().default(""),
 });
 
