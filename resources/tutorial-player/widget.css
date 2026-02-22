@@ -22,6 +22,23 @@
   border-radius: 12px;
 }
 
+.peazy-active-pill {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 31;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(8, 18, 32, 0.9);
+  color: #d2e0f3;
+  font-size: 12px;
+  max-width: calc(100% - 120px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .peazy-gear {
   position: absolute;
   top: 10px;
@@ -67,6 +84,14 @@
 .peazy-menu-list {
   max-height: 320px;
   overflow: auto;
+}
+
+.peazy-menu-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(70, 101, 145, 0.6);
 }
 
 .peazy-chapter {
@@ -120,6 +145,42 @@
   font-size: 12px;
   color: #94a3b8;
   white-space: nowrap;
+}
+
+.peazy-jump-controls {
+  position: absolute;
+  left: 12px;
+  bottom: 62px;
+  z-index: 30;
+  display: flex;
+  gap: 8px;
+}
+
+.peazy-nav-btn {
+  border: 1px solid rgba(111, 132, 167, 0.7);
+  background: rgba(9, 19, 34, 0.9);
+  color: #e8eef9;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.peazy-nav-btn:hover {
+  background: rgba(28, 46, 74, 0.95);
+}
+
+.peazy-interaction {
+  position: absolute;
+  left: 12px;
+  bottom: 22px;
+  z-index: 30;
+  border-radius: 8px;
+  border: 1px solid rgba(88, 143, 226, 0.65);
+  background: rgba(9, 24, 44, 0.92);
+  color: #d5e4f7;
+  font-size: 12px;
+  padding: 6px 10px;
 }
 
 .peazy-loading {
