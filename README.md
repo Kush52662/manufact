@@ -35,6 +35,17 @@ POOM answers with personalized product proof, not generic marketing pages or lon
 3. Streams chaptered playback and contextual quiz interactions.
 4. Supports structured interaction patterns that can feed lead qualification workflows.
 
+## End-to-end in-widget flow
+
+Everything happens inside the ChatGPT widget:
+
+1. Create POOM: user requests a personalized walkthrough from a question or source video.
+2. Track POOM progress: widget shows live generation status (ingest, segmentation, script, dubbing, ready).
+3. View previous POOMs: user can open past generated POOMs from run history.
+4. Play a POOM: user watches the chaptered interactive walkthrough directly in the widget.
+
+No context switching, no external dashboard required.
+
 ## How the ADK pipeline runs
 
 ```mermaid
