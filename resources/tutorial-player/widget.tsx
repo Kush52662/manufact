@@ -421,7 +421,7 @@ const TutorialPlayer: React.FC = () => {
                     <div key={run.run_id} className="peazy-row peazy-run-row">
                       <div>
                         <div><strong>{formatRunTitle(run)}</strong></div>
-                        <div className="peazy-muted">{run.run_id}</div>
+                        <div className="peazy-muted">POOM walkthrough</div>
                         <div className="peazy-muted">
                           {formatWhen(run.created_at)} · {run.segment_count ?? 0} segments · {(run.duration_sec ?? 0).toFixed(1)}s
                         </div>

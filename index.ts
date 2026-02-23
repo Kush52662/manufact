@@ -225,11 +225,24 @@ function titleLooksOpaque(title: string): boolean {
   return false;
 }
 
+function titleLooksTechnical(title: string): boolean {
+  if (titleLooksOpaque(title)) {
+    return true;
+  }
+  if (/\b(rerun|check|integration|fix|e2e|yc|run)\b/i.test(title)) {
+    return true;
+  }
+  if (/\b20\d{2}(?:\d{2})?(?:\d{2})?\b/.test(title)) {
+    return true;
+  }
+  return false;
+}
+
 async function toRunCard(run: z.infer<typeof RunInfoSchema>) {
   const heuristicTitle = deriveRunTitle(run);
   let runTitle = heuristicTitle;
 
-  if (titleLooksOpaque(heuristicTitle)) {
+  if (titleLooksTechnical(heuristicTitle)) {
     try {
       const manifest = await fetchManifest(run.run_id);
       const candidate = manifest.master.chapters[0]?.name || manifest.segments[0]?.name || "";
