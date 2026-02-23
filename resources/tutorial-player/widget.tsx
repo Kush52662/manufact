@@ -19,20 +19,16 @@ export const widgetMetadata: WidgetMetadata = {
     invoked: "Tutorial player ready",
     csp: {
       connectDomains: [
-        "https://fixed-control-van-vocabulary.trycloudflare.com",
         "https://storage.googleapis.com",
         "https://storage.cloud.google.com",
         "https://*.googleapis.com",
         "https://*.run.app",
-        "https://*.trycloudflare.com",
       ],
       resourceDomains: [
         "https://storage.googleapis.com",
         "https://storage.cloud.google.com",
         "https://*.googleapis.com",
-        "https://fixed-control-van-vocabulary.trycloudflare.com",
         "https://*.run.app",
-        "https://*.trycloudflare.com",
       ],
     },
   },
