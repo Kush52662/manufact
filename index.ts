@@ -170,6 +170,7 @@ const QuizScoreSchema = z.object({
 
 const manifestCache = new Map<string, { expiresAt: number; payload: z.infer<typeof ManifestSchema> }>();
 const inflightManifest = new Map<string, Promise<z.infer<typeof ManifestSchema>>>();
+const RECENT_JOB_WINDOW_MS = 20 * 60 * 1000;
 
 function toPoomUrl(runId: string): string {
   return `poom://run/${encodeURIComponent(runId)}`;
@@ -460,6 +461,28 @@ async function hubWidgetResponse(runs: z.infer<typeof RunInfoSchema>[], activeJo
   });
 }
 
+function parseIsoMs(value: string | undefined): number {
+  if (!value) return 0;
+  const t = Date.parse(value);
+  return Number.isFinite(t) ? t : 0;
+}
+
+function selectVisibleJobs(jobs: z.infer<typeof PipelineJobSchema>[]): z.infer<typeof PipelineJobSchema>[] {
+  const now = Date.now();
+  const ordered = [...jobs].sort((a, b) => parseIsoMs(b.updated_at) - parseIsoMs(a.updated_at));
+  const visible = ordered.filter((job) => {
+    if (job.status === "queued" || job.status === "running") {
+      return true;
+    }
+    if (job.status === "failed") {
+      const updatedAtMs = parseIsoMs(job.updated_at);
+      return updatedAtMs > 0 && now - updatedAtMs <= RECENT_JOB_WINDOW_MS;
+    }
+    return false;
+  });
+  return visible.slice(0, 12);
+}
+
 server.tool(
   {
     name: "list_runs",
@@ -495,8 +518,7 @@ server.tool(
   async () => {
     try {
       const [runs, jobs] = await Promise.all([fetchRuns(), fetchPipelineJobs()]);
-      const activeJobs = jobs.jobs.filter((job) => job.status === "queued" || job.status === "running");
-      return await hubWidgetResponse(runs.runs, activeJobs);
+      return await hubWidgetResponse(runs.runs, selectVisibleJobs(jobs.jobs));
     } catch (err) {
       return toolError(err);
     }
@@ -537,13 +559,17 @@ server.tool(
         const [runsResponse, jobsResponse] = await Promise.all([fetchRuns(), fetchPipelineJobs()]);
         runs = runsResponse.runs;
         const deduped = new Map<string, z.infer<typeof PipelineJobSchema>>();
-        const merged = [created.job, ...jobsResponse.jobs];
+        const merged = [...jobsResponse.jobs];
+        if (!merged.some((job) => job.job_id === created.job.job_id)) {
+          merged.unshift(created.job);
+        }
         for (const job of merged) {
-          if ((job.status === "queued" || job.status === "running") && !deduped.has(job.job_id)) {
+          const existing = deduped.get(job.job_id);
+          if (!existing || parseIsoMs(job.updated_at) >= parseIsoMs(existing.updated_at)) {
             deduped.set(job.job_id, job);
           }
         }
-        activeJobs = Array.from(deduped.values());
+        activeJobs = selectVisibleJobs(Array.from(deduped.values()));
         hubMessage = `POOM queued: ${created.job.job_id}. Showing ${runs.length} POOM run(s).`;
       } catch {
         hubMessage = `POOM queued: ${created.job.job_id}. Refreshing runs is temporarily unavailable.`;

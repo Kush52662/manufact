@@ -402,8 +402,8 @@ const TutorialPlayer: React.FC = () => {
 
               <div className="peazy-hub-grid">
                 <section className="peazy-panel">
-                  <h4>Active Jobs</h4>
-                  {hubJobs.length === 0 ? <p className="peazy-muted">No active jobs.</p> : null}
+                  <h4>Jobs</h4>
+                  {hubJobs.length === 0 ? <p className="peazy-muted">No queued/running/recent-failed jobs.</p> : null}
                   {hubJobs.map((job) => (
                     <div key={job.job_id} className="peazy-row">
                       <div>
