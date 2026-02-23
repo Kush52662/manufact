@@ -238,6 +238,21 @@ function titleLooksTechnical(title: string): boolean {
   return false;
 }
 
+function formatRunDateTitle(createdAt?: string): string {
+  if (!createdAt) return "POOM Walkthrough";
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return "POOM Walkthrough";
+  const label = d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  });
+  return `POOM Walkthrough (${label} UTC)`;
+}
+
 async function toRunCard(run: z.infer<typeof RunInfoSchema>) {
   const heuristicTitle = deriveRunTitle(run);
   let runTitle = heuristicTitle;
@@ -252,6 +267,10 @@ async function toRunCard(run: z.infer<typeof RunInfoSchema>) {
     } catch {
       // Keep heuristic title when manifest lookup fails.
     }
+  }
+
+  if (titleLooksTechnical(runTitle)) {
+    runTitle = formatRunDateTitle(run.created_at);
   }
 
   return {
